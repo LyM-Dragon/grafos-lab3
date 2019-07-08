@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 
 
 typedef struct{
@@ -19,7 +20,15 @@ typedef struct{
     ListaIndex* padres;
 }ProcesoBio;
 
-ListaIndex* crearLista(int newIndex){
+typedef struct{
+    int profundidad;
+    ProcesoBio* vertices;
+}Grafo;
+
+
+//***OPERACIONES DE ESTRUCTURAS DEFINIDAS***
+
+ListaIndex* crearListaIndex(int newIndex){
     ListaIndex* new = (ListaIndex*)malloc(sizeof(ListaIndex));
     new->index = newIndex;
     new->next = NULL;
@@ -52,12 +61,38 @@ ListaIndex* siguiente(ListaIndex* lista, int posicion){
     return lista;
 }
 
-int* crearArregloGenes(int size){
-    int* arreglo = (int*)malloc(sizeof(int) * size);
+int crearGen(int idGen){
+    Gen* gen = (Gen*)malloc(sizeof(Gen));
+    if (gen != NULL){
+        gen->idGen = idGen;
+        return gen;
+    }else{
+        printf("ERROR: No se encontro suficiente memoria para crear Gen\n");
+        return NULL;
+    }
+}
+
+Gen* crearArregloGenes(int size){
+    Gen* arreglo = (Gen*)malloc(sizeof(Gen) * size);
     if (arreglo != NULL){
         return arreglo;
     }else{
         printf("ERROR: No se encontro suficiente memoria para crear arreglo de genes\n");
+        return NULL;
+    }
+}
+
+ProcesoBio crearProcesoBio(char idProceso[5], int profundidad){
+    ProcesoBio* proceso = (ProcesoBio*)malloc(sizeof(ProcesoBio));
+    if (proceso != NULL){
+        strcpy(proceso->idProceso, idProceso);
+        proceso->profundidad = profundidad;
+        proceso->gen = NULL;
+        proceso->padres = NULL;
+
+        return proceso;   
+    }else{
+        printf("ERROR: No se encontro suficiente memoria para crear Proceso biológico\n");
         return NULL;
     }
 }
@@ -71,6 +106,37 @@ ProcesoBio* crearArregloProcesoBio(int size){
         return NULL;
     }
 }
+
+Grafo* crearGrafo(int cantidadVertices){
+    Grafo* grafo = (Grafo*)malloc(sizeof(Grafo));
+    if (grafo != NULL){
+        ProcesoBio* arregloProcesos = crearArregloProcesoBio(cantidadVertices);
+        if(arregloProcesos != NULL){
+            grafo->vertices = arregloProcesos;
+            grafo->profundidad = -1;
+        }else{
+            return NULL;
+        }
+
+        return grafo;
+    }else{
+        printf("ERROR: No se encontro suficiente memoria para crear arreglo de procesos biológicos\n");
+        return NULL;
+    }   
+}
+
+int obtenerIndiceProcesoBio(char identificador[5], ProcesoBio* grafo, int size){
+    for (int i = 0; i < size; i++){
+        if (strcmp(grafo[i].idProceso, identificador) == 0){
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+
+//***OPERACIONES DE LIMPIEZA DE MEMORIA***
 
 void freeListaIndex(ListaIndex* lista){
     int i;
@@ -89,33 +155,29 @@ void freeContProcesoBio(ProcesoBio* procesoBio){
     }
 }
 
-void freeGrafo(ProcesoBio* procesoBio, int size){
+void freeGrafo(Grafo* grafo, int size){
     for (int i = 0; i < size; i++){
-        freeContProcesoBio(&procesoBio[i]);
+        freeContProcesoBio(&grafo->vertices[i]);
     }
-    free(procesoBio);
+    free(&grafo->vertices);
+    free(grafo);
 }
 
 
-void printGrafo(ProcesoBio* grafo, int size){
+void printGrafo(ProcesoBio* grafo, int size, int profundidad){
 
-    for (int i = 1; i < size; i++){
+    for (int i = 0; i < size; i++){
         ProcesoBio vertice = grafo[i];
+        if (vertice.padres == NULL){
+            printf("%s\n", vertice.idProceso);
+            continue;
+        }
+
         printf("%s ", vertice.idProceso);
         printf("%s ", vertice.idProceso);
     }
     
 }
-
-// void printMatriz(int** matriz, int size){
-// 	int i,j;
-// 	for(i=0;i<size;i++){
-// 		for(j=0;j<size;j++){
-// 			printf("%d ",matriz[i][j]);
-// 		}
-// 		printf("\n");
-// 	}
-// }
 
 
 // int main(){
@@ -140,11 +202,53 @@ void printGrafo(ProcesoBio* grafo, int size){
 // }
 
 
-ProcesoBio* cargarGenes(FILE *archivo){
+Grafo* cargarGrafo(FILE *archivo){
+    int size;
+    char idProceso[5];
+    char chr;
+    fscanf(archivo,"%d",&size);
+    fscanf(archivo,"%s", &idProceso);
+    Grafo* grafo = crearGrafo(size);
+    strcpy(grafo->vertices[0].idProceso, idProceso);
+    grafo->vertices[0].profundidad = 0;
+    grafo->vertices[0].padres = NULL;
+    grafo->vertices[0].gen = NULL;
+    int palabraCount = 0;
 
+    for (int i = 1; i < size; i++){
+        while(fscanf(archivo, "%s%c", &idProceso, &chr) != EOF){
+            if(palabraCount == 0){
+                //Es un nuevo vértice
+                ProcesoBio newProceso = {idProceso, -1, NULL, NULL};
+                grafo->vertices[i] = newProceso;
+                palabraCount++;
+            }else if(palabraCount == 1){
+                //Primer padre del vértice
+                int indicePadre = obtenerIndiceProcesoBio(idProceso, grafo->vertices, i+1);
+                grafo->vertices[i].padres = crearListaIndex(indicePadre);
+                grafo->vertices[i].profundidad = grafo->vertices[indicePadre].profundidad + 1;
+            }else{
+                //Más padres
+                int indicePadre = obtenerIndiceProcesoBio(idProceso, grafo->vertices, i+1);
+                grafo->vertices[i].padres = insertar(indicePadre, grafo->vertices[i].padres);
+                int profundidadTemp = grafo->vertices[indicePadre].profundidad + 1;
+                if(profundidadTemp > grafo->vertices[i].profundidad){
+                    grafo->vertices[i].profundidad = profundidadTemp;
+                }
+            }
+
+            if(chr = '\n'){
+                palabraCount = 0;
+                break;
+            }
+        }
+    }
+
+    return grafo;
+    
 }
 
-ProcesoBio* cargarGrafo(FILE *archivo){
+ProcesoBio* cargarGenes(FILE *archivo){
 
 }
 
@@ -187,6 +291,31 @@ double calcularSimilitudGenes(Gen gen1, Gen gen2, ProcesoBio* grafo){
     }
 }
 
-int main(){
+
+int similitudGenes(){
+    FILE *archivoProcesos = fopen("input/procesos.in","r");
+    
+    if(archivoProcesos==NULL)
+    {
+        printf("ERROR: El archivo procesos.in no se pudo abrir, escriba el nombre correctamente con su extension.");
+        return 1;
+    }
+
+    ProcesoBio* grafo = cargarGrafo(archivoProcesos);
+
+    int size;
+    fscanf(archivoProcesos,"%d",&size);
+    int **matrizAdyacencia=crearMatrizAdy(archivoProcesos,size);
+    fclose(archivoProcesos);
+
+    printMatriz(matrizAdyacencia,size);
+    
+    
+    freeMatriz(matrizAdyacencia,size);
+
     return 0;
+}
+
+int main(){
+    return similitudGenes();
 }
