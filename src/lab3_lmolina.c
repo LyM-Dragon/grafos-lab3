@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 
 typedef struct ListaIndex{
     int index;
+    int largo;
     struct ListaIndex* next;
 }ListaIndex;
 
@@ -33,6 +35,7 @@ typedef struct{
 ListaIndex* crearListaIndex(int newIndex){
     ListaIndex* new = (ListaIndex*)malloc(sizeof(ListaIndex));
     new->index = newIndex;
+    new->largo = 1;
     new->next = NULL;
     return new;
 }
@@ -41,6 +44,7 @@ ListaIndex* crearListaIndex(int newIndex){
 ListaIndex* insertarListaIndex(int newIndex, ListaIndex* lista){
     ListaIndex* new = (ListaIndex*)malloc(sizeof(ListaIndex));
     new->index = newIndex;
+    new->largo = lista->largo + 1;    
     new->next = lista;
     return new;
 }
@@ -331,55 +335,90 @@ ListaIndex* obtenerProcesosGen(Grafo grafo, int idGen){
 }
 
 
-ProcesoBio encontrarAncenstroComun(ProcesoBio vertice1, ProcesoBio vertice2, Grafo grafo){
+//recorrido por anchura
+ProcesoBio encontrarAncenstroComunCercano(ProcesoBio vertice1, ProcesoBio vertice2, Grafo grafo){
     
 }
 
 double calcularWuPalmer(ProcesoBio vertice1, ProcesoBio vertice2, Grafo grafo){
-
+    ProcesoBio ancestroComunMasCercano = encontrarAncenstroComunCercano(vertice1, vertice2, grafo);
+    int D3 = ancestroComunMasCercano.profundidad;
+    int D2 = vertice2.profundidad - D3;
+    int D1 = vertice1.profundidad - D3;
+    
+    return (2*D3)/(D1 + D2 + (2*D3));
 }
 
 double calcularLeacockChorodow(ProcesoBio vertice1, ProcesoBio vertice2, Grafo grafo){
-
+    ProcesoBio ancestroComunMasCercano = encontrarAncenstroComunCercano(vertice1, vertice2, grafo);
+    int D = grafo.profundidad;
+    int D2 = vertice2.profundidad - ancestroComunMasCercano.profundidad;
+    int D1 = vertice1.profundidad - ancestroComunMasCercano.profundidad;
+    
+    return -log10(D1 + D2 +1)/(2*D);
 }
 
 double calcularSimilitudLeacockChorodow(int idGen1, int idGen2, Grafo grafo){
-    double resultado = -1;
+    int cantidad_procesos_gen1 = 0;
+    int cantidad_procesos_gen2 = 0;
+    int total_pares_procesos = 1;
+    double resultado = 0;
+
+
     ListaIndex* procesosGen1 = obtenerProcesosGen(grafo, idGen1);
     ListaIndex* procesosGen2 = obtenerProcesosGen(grafo, idGen2);
 
-    if (!(procesosGen1 != NULL && procesosGen2 != NULL)){
+    if (procesosGen1 == NULL || procesosGen2 == NULL){
         return resultado;
     }
 
+    cantidad_procesos_gen1 = procesosGen1->largo;
+    cantidad_procesos_gen2 = procesosGen2->largo;
+    total_pares_procesos = cantidad_procesos_gen1 * cantidad_procesos_gen2;
+
     while(procesosGen1 != NULL){
-        ListaIndex* procesosGen2Cpy = procesosGen2;
-        while (procesosGen2Cpy != NULL){
-            resultado += calcularWuPalmer(grafo.vertices[procesosGen1->index], grafo.vertices[procesosGen2->index], grafo);
+        ListaIndex* procesosGen2Copy = procesosGen2;
+        while (procesosGen2Copy != NULL){
+            resultado += calcularLeacockChorodow(grafo.vertices[procesosGen1->index], grafo.vertices[procesosGen2Copy->index], grafo);
+            procesosGen2Copy = procesosGen2Copy->next;
         }
-        
+        procesosGen1 = procesosGen1->next;     
     }
-    
+
+    resultado /= total_pares_procesos;
+
     return resultado;
 }
 
 double calcularSimilitudWuPalmer(int idGen1, int idGen2, Grafo grafo){
-    double resultado = -1;
+    int cantidad_procesos_gen1 = 0;
+    int cantidad_procesos_gen2 = 0;
+    int total_pares_procesos = 1;
+    double resultado = 0;
+
+
     ListaIndex* procesosGen1 = obtenerProcesosGen(grafo, idGen1);
     ListaIndex* procesosGen2 = obtenerProcesosGen(grafo, idGen2);
 
-    if (!(procesosGen1 != NULL && procesosGen2 != NULL)){
+    if (procesosGen1 == NULL || procesosGen2 == NULL){
         return resultado;
     }
 
+    cantidad_procesos_gen1 = procesosGen1->largo;
+    cantidad_procesos_gen2 = procesosGen2->largo;
+    total_pares_procesos = cantidad_procesos_gen1 * cantidad_procesos_gen2;
+
     while(procesosGen1 != NULL){
-        ListaIndex* procesosGen2Cpy = procesosGen2;
-        while (procesosGen2Cpy != NULL){
-            resultado += calcularLeacockChorodow(grafo.vertices[procesosGen1->index], grafo.vertices[procesosGen2->index], grafo);
+        ListaIndex* procesosGen2Copy = procesosGen2;
+        while (procesosGen2Copy != NULL){
+            resultado += calcularWuPalmer(grafo.vertices[procesosGen1->index], grafo.vertices[procesosGen2Copy->index], grafo);
+            procesosGen2Copy = procesosGen2Copy->next;
         }
-        
+        procesosGen1 = procesosGen1->next;
     }
-    
+
+    resultado /= total_pares_procesos;
+
     return resultado;
 }
 
